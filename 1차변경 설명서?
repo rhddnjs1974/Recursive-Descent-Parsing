@@ -1,0 +1,49 @@
+main.cpp 변경점
+
+추가
+
+문장끝났는지 확인 용도
+int end = static_cast<int>(R);
+Statement(toks.data(), &cur, &end, sym.data());
+
+삭제
+
+사용 안함
+extern int* isunknown;
+extern int  isunknown_n;
+isunknown
+isunknown_n = id_counter;
+isunknown = new int[isunknown_n];
+for (int i = 0; i < isunknown_n; ++i) isunknown[i] = 0;   // 처음엔 모두 Unknown
+
+Parser에서 처리
+std::cout << "(OK)\n\n";
+
+변경
+
+내가 사용한 구조체에 맞게 변경
+for (std::size_t i = 0; i < tbl.size(); ++i) {
+    if (i) std::cout << ' ';
+    std::cout << tbl[i].lexeme << ": "
+        << (tbl[i].is_unknown == UNKNOWN ? std::string("Unknown")
+            : std::to_string(tbl[i].value))
+        << ';';
+
+    //if (i) std::cout << ' ';
+    //std::cout << tbl[i].lexeme << ": "
+    //    << (tbl[i].value == UNKNOWN ? std::string("Unknown")
+    //        : std::to_string(tbl[i].value))
+    //    << ';';
+
+
+Internal Document:
+lexem에서 어휘분석되고 main에서 statement단위로 받아서 parsing을 과제에 주어진 대로 하면서 계산도 동시에 한다. 
+정의되지 않은 ID인지 구분한다.
+오류를 확정하는 함수는 다음과 같다.
+Statement: <ident><assignment_op><experssion>형태인지 확인하고, 문장이 끝났는지 확인한다.
+Expression: 길이가 0인 오류를 확인한다.
+Term_tail, Factor_tail: 연산자 뒤에 잘못된 값이 오는 오류를 확인한다.
+Factor: “)”부족 오류를 확인한다.
+ 
+External Document:
+이미 형이 다 이상한 값 걸러줄거라 내가 쓸게 없다.
