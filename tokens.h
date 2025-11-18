@@ -12,3 +12,6 @@
 #define LEFT_PAREN  25
 #define RIGHT_PAREN 26
 #define UNKNOWN     99
+
+#define NO_PROB		100
+#define ERROR_PS	101

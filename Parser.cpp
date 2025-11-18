@@ -1,258 +1,363 @@
 #include "Parser.h"
+#include "tokens.h"
 #include <iostream>
-using namespace std;
-
-#define CONST 11
-#define IDENT 12
-#define SEMI_COLON 19
-#define ASSIGN_OP 20
-#define ADD_OP 21
-#define SUB_OP 22
-#define MULT_OP 23
-#define DIV_OP 24
-#define LEFT_PAREN 25
-#define RIGHT_PAREN 26
-#define UNKNOWN 99
 
 using namespace std;
 
-int* isunknown = nullptr;
-int  isunknown_n = 0;
-int  last_ident_index = -1;
+//v1 ¼öÁ¤»çÇ× id.is_unknownÃß°¡, *real_curr++ ¸¦ (*real_curr)++ ·Î ¼öÁ¤
+//ÀÇ¹Ì ¿À·ù´Â (OK) Ã³¸®
 
-int id_counter = 3;
 
-void Program() {
-   //ê°™ì´ ì²˜ë¦¬ ê³ ë¯¼
+int id_counter = 0;
+
+void Statement(const state* c, int* real_curr, int* end_curr, id* ident) {
+	int this_curr, new_curr;
+	id result;
+	int id_num;
+	result.value = UNKNOWN;
+	this_curr = *real_curr;
+	id_num = Ident(c, real_curr, ident);
+	if (this_curr != *real_curr) {
+		new_curr = *real_curr;
+		Assignment_op(c, real_curr);
+		if (new_curr != *real_curr) {
+			//":="¸ÂÀ½
+			new_curr = *real_curr;
+			result = Expression(c, real_curr, ident, result);
+			if (new_curr != *real_curr) {
+				if (result.is_unknown == ERROR_PS)return;
+
+				//¿ÏÀüÈ÷ ÆÄ½ÌµÆÀ» ¶§¸¸ ¿©±â ¿È
+				//¹®Àå ³¡ÀÌ ¸Â´ÂÁö È®ÀÎ
+				if (*real_curr == *end_curr) {//==¾Æ´Ï°í >¿©¾ß ÇÒ¼öµµ ÀÖÀ½
+					if (result.is_unknown == NO_PROB) {
+						ident[id_num].value = result.value;
+						ident[id_num].is_unknown = NO_PROB;//¼±¾ğ µÊ
+					}
+					else {//result.is_unknown == UNKNOWN
+						//Á¤ÀÇ µÇÁö ¾ÊÀº °ªÀ» Áı¾î ³Ö¾úÀ¸´Ï ÀÌ¹Ì ¼±¾ğµÇ¾î ÀÖ¾ú´õ¶óµµ ´Ù½Ã unknownµÊ
+						ident[id_num].is_unknown = UNKNOWN;
+						//cout << "error from statemet experssion unknown, ¾Æ¸¶µµ Ãâ·Â ¾ÈÇÒ °Çµ¥ È®ÀÎ¿ë." << endl;
+					}
+					cout << "(OK)\n\n";
+					return;
+				}
+				//+,-,*,/,(,; °¡´É¼º ¾øÀ½
+				//ID,CONST,),:=ÀÌ¸é ¿À·ù
+
+				switch (c[*real_curr].token_type) {
+				case IDENT:
+				case CONST:
+					cout << "(ERROR) ¿¬»êÀÚ(OP) ºÎÁ·\n\n"; break;
+				case ASSIGN_OP:
+					cout << "(ERROR) Áßº¹ \":=\" ¹ß»ı\n\n"; break;
+				case RIGHT_PAREN:
+					cout << "(ERROR) LEFT_PAREN\"(\" ºÎÁ·\n\n"; break;
+				default: break;
+				}
+				return;
+
+
+			}
+			//<experssion> ±æÀÌ 0 ¿À·ù
+			//µÚ¿¡ ´õ ÀÖÀ» ¼öµµ ¾øÀ» ¼öµµ ÀÖÁö¸¸ Ã¹¹øÂ°°¡ ÇÇ¿¬»êÀÚ°¡ ¾Æ´Ô
+			//¿À·ù¶ó¸é °ªÀÌ Á¤ÀÇ µÇÁö ¾ÊÀ½
+			else {
+				//ÀÌ¹Ì <experssion>¿¡¼­ Ã³¸®
+				return;
+			}
+		}
+		//":="¾Æ´Ô ¿À·ù, ÇÊ¿äÇÑ ¿À·ù
+		//¿À·ù¶ó¸é °ªÀÌ Á¤ÀÇ µÇÁö ¾ÊÀ½
+		else {
+			ident[id_num].is_unknown = UNKNOWN;
+			cout << "(ERROR) ½Äº°ÀÚ µÚ¿¡´Â ´ëÀÔ ¿¬»êÀÚ ':='°¡ ÇÊ¿äÇÕ´Ï´Ù.\n\n";
+			return;
+		}
+	}
+	//ident ¾Æ´Ô ¿À·ù, ÇÊ¿äÇÑ ¿À·ù
+	//Á¤ÀÇµÉ º¯¼öÀÚÃ¼°¡ ¾øÀ½
+	else {
+		cout << "(ERROR) ¹®ÀåÀº ½Äº°ÀÚ(ID)·Î ½ÃÀÛÇØ¾ß ÇÕ´Ï´Ù.\n\n";
+		return;
+	}
 }
-void Statements() {
-   //ê°™ì´ ì²˜ë¦¬ ê³ ë¯¼
+id Expression(const state* c, int* real_curr, id* ident, id result) {
+	int this_curr;
+	this_curr = *real_curr;
+	result = Term(c, real_curr, ident, result);
+	if (this_curr != *real_curr) {
+		if (result.is_unknown == ERROR_PS)return result;
+		return Term_tail(c, real_curr, ident, result);
+	}
+	//ÀÏ´Ü ¿À·ùÀÎµ¥ ¹»±î...
+	//±æÀÌ 0 ¿À·ùÀÎµ¥ statement,factor¿¡ Àü´Ş
+
+	result.is_unknown = ERROR_PS;
+	cout << "(ERROR) ÇÇ¿¬»êÀÚ(ID,CONST) ºÎÁ·\n\n";
+	return result;
 }
-void Stmts_tail() {
-   //ê°™ì´ ì²˜ë¦¬ ê³ ë¯¼
+id Term_tail(const state* c, int* real_curr, id* ident, id result) {
+	int this_curr, new_curr, add_op;
+	id new_result;
+	new_result.value = UNKNOWN;
+	add_op = UNKNOWN;
+	this_curr = *real_curr;
+	add_op = Add_operator(c, real_curr);
+	if (this_curr != *real_curr) {
+		//"+" or "-"
+		new_curr = *real_curr;
+		new_result = Term(c, real_curr, ident, new_result);
+		if (new_curr != *real_curr) {//ÀÌ¹Ì *real_curr; ´ÙÀ½°ª º¸°í ÀÖÀ¸¹Ç·Î ±×³É ¸®ÅÏÇØµµ µÊ
+			if (new_result.is_unknown == ERROR_PS)return new_result;//ÀÌ¹Ì ¿À·ù ÀÖ¾úÀ½
+			if (add_op == ADD_OP) {
+				if (new_result.is_unknown == NO_PROB) {
+					result.value = result.value + new_result.value;
+				}
+				else {
+					//¼±¾ğ ¾ÈµÈ º¯¼ö ÂüÁ¶ÇÔ
+					result.is_unknown = UNKNOWN;
+				}
+			}
+			else if (add_op == SUB_OP) {
+				if (new_result.is_unknown == NO_PROB) {
+					result.value = result.value - new_result.value;
+				}
+				else {
+					//¼±¾ğ ¾ÈµÈ º¯¼ö ÂüÁ¶ÇÔ
+					result.is_unknown = UNKNOWN;
+				}
+
+			}
+			else {
+				//Add_operator°¡ ¾î¼ÁµÇ¼­ ÀÌ°Å µÇ¸é ÇÁ·Î±×·¥ ¿À·ù
+				//Ãâ·ÂµÉ ÀÏ ¾øÀ½
+				cout << "error from term_tail not add_op" << endl;
+			}
+			//°è¼Ó ÆÄ½Ì
+			return Term_tail(c, real_curr, ident, result);
+		}
+		//Add_operator¿©±â¼­ ¹Û¿¡ ¾øÀ¸¹Ç·Î µÚ°¡ ¾î¼Á ¾ÈµÇ¸é ¿À·ù
+		//¿À·ù¶ó¸é °ªÀÌ Á¤ÀÇ µÇÁö ¾ÊÀ½
+		else {
+			result.is_unknown = ERROR_PS;
+			//ID,CONST,( °¡´É¼º ¾øÀ½
+			//+,-,*,/,),:=,;ÀÌ¸é ¿À·ù
+			switch (c[*real_curr].token_type) {
+			case ADD_OP:
+			case SUB_OP:
+			case MULT_OP:
+			case DIV_OP:
+				cout << "(ERROR) Áßº¹ ¿¬»êÀÚ(" << c[*real_curr - 1].lexeme << " " << c[*real_curr].lexeme << ") ¹ß»ı\n\n"; break;
+			case ASSIGN_OP:
+				cout << "(ERROR) Áßº¹ \":=\" ¹ß»ı\n\n"; break;
+			case RIGHT_PAREN:
+			default:
+				cout << "(ERROR) ÇÇ¿¬»êÀÚ(ID,CONST) ºÎÁ·\n\n"; break;
+			}
+			return result;
+		}
+	}
+	//¿¦½Ç·ĞÀÌ¹Ç·Î ¹ŞÀº °ª ±×´ë·Î ¹İÈ¯
+	return result;
 }
-void Statement(const state* c, int* real_curr, id* ident) {
-   int this_curr, new_curr, result;
-   int* idp;
-   result = UNKNOWN;
-   this_curr = *real_curr;
-   idp = Ident(c, real_curr, ident);
-   if (this_curr != *real_curr) {
-      new_curr = *real_curr;
-      Assignment_op(c, real_curr);
-      if (new_curr != *real_curr) {
-         //":="ë§ìŒ
-         new_curr = *real_curr;
-         result = Expression(c, real_curr, ident);
-         if (new_curr != *real_curr) {
-            *idp = result;
-            return;
-         }
-         //<experssion>ì€ í•­ìƒ 1ì´ìƒì˜ ê¸¸ì´ì„, ì•„ë§ˆë„ factorì—ì„œ ê±¸ëŸ¬ì ¸ì„œ ì—¬ê¸°ëŠ” ì•ˆì˜¬ë“¯
-         else {
-            cout << "error from statemet not experssion, ì•„ë§ˆë„ ì¶œë ¥í•  ì¼ ì—†ì„ ê²ƒ." << endl;
-            return;
-         }
-      }
-      //":="ì•„ë‹˜ ì˜¤ë¥˜
-      else {
-         cout << ":= ì•„ë‹˜ ì˜¤ë¥˜, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-         return;
-      }
-   }
-   //ident ì•„ë‹˜ ì˜¤ë¥˜
-   else {
-      cout << "error from statemet not ident, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-      return;
-   }
+id Term(const state* c, int* real_curr, id* ident, id result) {
+	//Expression¿¡¼­ ¸î°³ ¹Ù²Ş
+	int this_curr;
+	this_curr = *real_curr;
+	result = Factor(c, real_curr, ident, result);
+	if (this_curr != *real_curr) {
+		if (result.is_unknown == ERROR_PS)return result;//ÀÌ¹Ì ¿À·ù ÀÖ¾úÀ½
+		return Factor_tail(c, real_curr, ident, result);
+	}
+	//±æÀÌ 0 ¿À·ùÀÎµ¥ statement¿¡¼­ Ã³¸®ÇÒ °ÅÀÓ
+	return result;//±æÀÌ 0ÀÌ±â¿¡ ¹Ù²ï°Í ¾øÀ½
 }
-int Expression(const state* c, int* real_curr, id* ident) {
-   int this_curr, result, mult_op;
-   result = UNKNOWN;
-   this_curr = *real_curr;
-   result = Term(c, real_curr, ident);
-   if (this_curr != *real_curr) {
-      return Term_tail(c, real_curr, ident, result);
-   }
-   //ì¼ë‹¨ ì˜¤ë¥˜ì¸ë° ë­˜ê¹Œ...
-   cout << "error from eperssion, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-   return UNKNOWN; //ì¶”ê°€í•¨
+id Factor_tail(const state* c, int* real_curr, id* ident, id result) {
+	//Term_tail¿¡¼­ ¸î°³ ¹Ù²Ş
+	int this_curr, new_curr, mult_op;
+	id new_result;
+	new_result.value = UNKNOWN;
+	mult_op = UNKNOWN;
+	this_curr = *real_curr;
+	mult_op = Mult_operator(c, real_curr);
+	if (this_curr != *real_curr) {
+		//"*" or "/"
+		new_curr = *real_curr;
+		new_result = Factor(c, real_curr, ident, new_result);
+		if (new_curr != *real_curr) {//ÀÌ¹Ì *real_curr; ´ÙÀ½°ª º¸°í ÀÖÀ¸¹Ç·Î ±×³É ¸®ÅÏÇØµµ µÊ
+			if (new_result.is_unknown == ERROR_PS)return new_result;//ÀÌ¹Ì ¿À·ù ÀÖ¾ú°í, ¿À·ù±¸¹® Ãâ·ÂÇÔ
+			if (mult_op == MULT_OP) {
+				if (new_result.is_unknown == NO_PROB) {
+					result.value = result.value * new_result.value;
+				}
+				else {
+					//¼±¾ğ ¾ÈµÈ º¯¼ö ÂüÁ¶ÇÔ
+					result.is_unknown = UNKNOWN;
+				}
+			}
+			else if (mult_op == DIV_OP) {
+				if (new_result.is_unknown == NO_PROB) {
+					result.value = result.value / new_result.value;
+				}
+				else {
+					//¼±¾ğ ¾ÈµÈ º¯¼ö ÂüÁ¶ÇÔ
+					result.is_unknown = UNKNOWN;
+				}
+			}
+			else {
+				//Mult_operator°¡ ¾î¼ÁµÇ¼­ ÀÌ°Å µÇ¸é ÇÁ·Î±×·¥ ¿À·ù
+				//Ãâ·ÂµÉ ÀÏ ¾øÀ½
+				cout << "error from factor_tail not mult_op" << endl;
+			}
+			//°è¼Ó ÆÄ½Ì
+			return Factor_tail(c, real_curr, ident, result);
+		}
+		//Mult_operator¿©±â¼­ ¹Û¿¡ ¾øÀ¸¹Ç·Î µÚ°¡ ¾î¼Á ¾ÈµÇ¸é ¿À·ù
+		//¿À·ù¶ó¸é °ªÀÌ Á¤ÀÇ µÇÁö ¾ÊÀ½
+		else {
+			result.is_unknown = ERROR_PS;
+			//ID,CONST,( °¡´É¼º ¾øÀ½
+			//+,-,*,/,),:=,;ÀÌ¸é ¿À·ù
+			switch (c[*real_curr].token_type) {
+			case ADD_OP:
+			case SUB_OP:
+			case MULT_OP:
+			case DIV_OP:
+				cout << "(ERROR) Áßº¹ ¿¬»êÀÚ(" << c[*real_curr - 1].lexeme << " " << c[*real_curr].lexeme << ") ¹ß»ı\n\n"; break;
+			case ASSIGN_OP:
+				cout << "(ERROR) Áßº¹ \":=\" ¹ß»ı\n\n"; break;
+			case RIGHT_PAREN:
+			default:
+				cout << "(ERROR) ÇÇ¿¬»êÀÚ(ID,CONST) ºÎÁ·\n\n"; break;
+			}
+			return result;
+		}
+	}
+	//¿¦½Ç·ĞÀÌ¹Ç·Î ¹ŞÀº °ª ±×´ë·Î ¹İÈ¯
+	return result;
 }
-int Term_tail(const state* c, int* real_curr, id* ident, int term_result) {
-   int this_curr, new_curr, result, add_op;
-   result = UNKNOWN;
-   add_op = UNKNOWN;
-   this_curr = *real_curr;
-   add_op = Add_operator(c, real_curr);
-   if (this_curr != *real_curr) {
-      //"+" or "-"
-      new_curr = *real_curr;
-      result = Term(c, real_curr, ident);
-      if (new_curr != *real_curr) {//ì´ë¯¸ *real_curr; ë‹¤ìŒê°’ ë³´ê³  ìˆìœ¼ë¯€ë¡œ ê·¸ëƒ¥ ë¦¬í„´í•´ë„ ë¨
-         if (add_op == ADD_OP) {
-            return Term_tail(c, real_curr, ident, term_result + result);
-         }
-         else if (add_op == SUB_OP) {
-            return Term_tail(c, real_curr, ident, term_result - result);
-         }
-         else {//termê°€ ì–´ì…‰ë˜ì„œ ì´ê±° ë˜ë©´ í”„ë¡œê·¸ë¨ ì˜¤ë¥˜
-            cout << "error from term_tail not add_op" << endl;
-         }
-      }
-      //Add_operatorì—¬ê¸°ì„œ ë°–ì— ì—†ìœ¼ë¯€ë¡œ ë’¤ê°€ ì–´ì…‰ ì•ˆë˜ë©´ ì˜¤ë¥˜
-      else {
-         cout << "error from term_tail not term, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-      }
-   }
-   //ì—¡ì‹¤ë¡ ì´ë¯€ë¡œ ë°›ì€ ê°’ ê·¸ëŒ€ë¡œ ë°˜í™˜
-   return term_result;
-}
-int Term(const state* c, int* real_curr, id* ident) {
-   //Expressionì—ì„œ ëª‡ê°œ ë°”ê¿ˆ
-   int this_curr, result, mult_op;
-   result = UNKNOWN;
-   this_curr = *real_curr;
-   result = Factor(c, real_curr, ident);
-   if (this_curr != *real_curr) {
-      return Factor_tail(c, real_curr, ident, result);
-   }
-   //ì¼ë‹¨ ì˜¤ë¥˜ì¸ë° ë­˜ê¹Œ...
-   cout << "error from term, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-   return UNKNOWN; // ì¶”ê°€í•¨
-}
-int Factor_tail(const state* c, int* real_curr, id* ident, int factor_result) {
-   //Term_tailì—ì„œ ëª‡ê°œ ë°”ê¿ˆ
-   int this_curr, new_curr, result,mult_op;
-   result = UNKNOWN;
-   mult_op = UNKNOWN;
-   this_curr = *real_curr;
-   mult_op = Mult_operator(c, real_curr);
-   if (this_curr != *real_curr) {
-      //"*" or "/"
-      new_curr = *real_curr;
-      result = Factor(c, real_curr, ident);
-      if (new_curr != *real_curr) {//ì´ë¯¸ *real_curr; ë‹¤ìŒê°’ ë³´ê³  ìˆìœ¼ë¯€ë¡œ ê·¸ëƒ¥ ë¦¬í„´í•´ë„ ë¨
-         if (mult_op == MULT_OP) {
-            return Factor_tail(c, real_curr, ident, factor_result * result);
-         }
-         else if(mult_op == DIV_OP) {
-            return Factor_tail(c, real_curr, ident, factor_result / result);
-         }
-         else {//factorê°€ ì–´ì…‰ë˜ì„œ ì´ê±° ë˜ë©´ í”„ë¡œê·¸ë¨ ì˜¤ë¥˜
-            cout << "error from factor_tail not mult_op" << endl;
-         }
-      }
-      //Mult_operatorì—¬ê¸°ì„œ ë°–ì— ì—†ìœ¼ë¯€ë¡œ ë’¤ê°€ ì–´ì…‰ ì•ˆë˜ë©´ ì˜¤ë¥˜
-      else {
-         cout << "error from factor_tail not factor, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-      }
-   }
-   //ì—¡ì‹¤ë¡ ì´ë¯€ë¡œ ë°›ì€ ê°’ ê·¸ëŒ€ë¡œ ë°˜í™˜
-   return factor_result;
-}
-int Factor(const state* c, int* real_curr, id* ident) {
-   int this_curr, new_curr, result;
-   result = UNKNOWN;
-   this_curr = *real_curr;
-   Left_paren(c, real_curr);
-   if (this_curr != *real_curr) {
-      //"("ë§ìŒ
-      new_curr = *real_curr;
-      result = Expression(c, real_curr, ident);
-      if (new_curr != *real_curr) {
-         //expression ì œëŒ€ë¡œ ë™ì‘í•¨
-         new_curr = *real_curr;
-         Right_paren(c, real_curr);
-         if (new_curr != *real_curr) {
-            //<left_paren><expression><right_paren> ì–´ì…‰
-            return result;
-         }
-         //")"ì•„ë‹˜, "("ìˆì—ˆê¸°ì— ì˜¤ë¥˜
-         else
-            cout << ") ì•„ë‹˜, ( ìˆì—ˆê¸°ì— ì˜¤ë¥˜, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-      }
-      //<expression>ì•„ë‹˜, "("ìˆì—ˆê¸°ì— ì˜¤ë¥˜
-      else
-         cout << "<expression> ì•„ë‹˜, ( ìˆì—ˆê¸°ì— ì˜¤ë¥˜, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-   }
-   //"("ì•„ë‹˜, <ident>,<const> ì‹¤í–‰í•´ë³´ê¸°
-   *real_curr = this_curr;
-   result = *Ident(c, real_curr, ident);//foctorì—ì„œëŠ” ê°’ì´ í•„ìš”í•˜ë¯€ë¡œ ì£¼ì†Œê°’ì—ì„œ ë³€ìˆ˜ê°’ ì°¸ì¡°
-   if (this_curr != *real_curr) {//ì´ë¯¸ real_curr ë‹¤ìŒê²ƒ ë³´ê³  ìˆìŒ
-      return result;//<ident>
-   }
-   //ì´ë¯¸*real_curr == this_curr
-   result = Const(c, real_curr);
-   if (this_curr != *real_curr) {//ì´ë¯¸ real_curr ë‹¤ìŒê²ƒ ë³´ê³  ìˆìŒ
-      return result;//<const>
-   }
-   //ì˜¤ë¥˜ì„
-   cout << "error from factor ëª¨ë“  êµ¬ë¬¸ë¬¸ë²• ì•„ë‹˜, ì˜¤ë¥˜êµ¬ë¬¸ ë§Œë“¤ì–´ì•¼í•¨" << endl;
-   return result;
+id Factor(const state* c, int* real_curr, id* ident, id result) {
+	int this_curr, new_curr, index;
+	this_curr = *real_curr;
+	Left_paren(c, real_curr);
+	if (this_curr != *real_curr) {
+		//"("¸ÂÀ½
+		new_curr = *real_curr;
+		result = Expression(c, real_curr, ident, result);
+		if (new_curr != *real_curr) {
+			if (result.is_unknown == ERROR_PS)return result;//ÀÌ¹Ì ¿À·ù ÀÖ¾úÀ½
+			//expression Á¦´ë·Î µ¿ÀÛÇÔ
+			new_curr = *real_curr;
+			Right_paren(c, real_curr);
+			if (new_curr != *real_curr) {
+				//<left_paren><expression><right_paren> ¾î¼Á
+				return result;
+			}
+			//")"¾Æ´Ô, "("ÀÖ¾ú±â¿¡ ¿À·ù
+			//¿À·ù¶ó¸é °ªÀÌ Á¤ÀÇ µÇÁö ¾ÊÀ½
+			else {
+				result.is_unknown = ERROR_PS;
+				cout << "(ERROR) RIGHT_PAREN\")\" ºÎÁ·\n\n";
+				return result;
+			}
+		}
+		//<expression>¾Æ´Ô, "("ÀÖ¾ú±â¿¡ ¿À·ù
+		//Á¤È®È÷´Â "(" ´ÙÀ½ ÆÄ½ÌµÇÁö ¾ÊÀ½,
+		else {
+			//result.is_unknown = 0;
+			//cout << "(ERROR) ÇÇ¿¬»êÀÚ(ID,CONST) ºÎÁ·" << endl;
+			//ÀÌ¹Ì <experssion>¿¡¼­ Ã³¸®
+			return result;
+		}
+	}
+	//"("¾Æ´Ô, <ident>,<const> ½ÇÇàÇØº¸±â
+
+	index = Ident(c, real_curr, ident);//identÀÇ index
+	if (this_curr != *real_curr) {//ÀÌ¹Ì real_curr ´ÙÀ½°Í º¸°í ÀÖÀ½
+		if (ident[index].is_unknown == NO_PROB) {
+			//¼±¾ğµÈ º¯¼ö ÂüÁ¶
+			result.value = ident[index].value;
+			result.is_unknown = NO_PROB;
+		}
+		else {
+			//cout << "¼±¾ğµÇÁö ¾ÊÀº º¯¼ö " << ident[index].lexeme << " ÂüÁ¶" << endl;
+			//ÀÇ¹Ì ¿À·ù´Â ´Ü¼ø ok Ã³¸®
+		}
+		return result;//<ident>
+	}
+	//ÀÌ¹Ì*real_curr == this_curr
+	result.value = Const(c, real_curr);
+	if (this_curr != *real_curr) {//ÀÌ¹Ì real_curr ´ÙÀ½°Í º¸°í ÀÖÀ½
+		result.is_unknown = NO_PROB;
+		return result;//<const>
+	}
+	//¿À·ùÀÓ
+	//cout << "error from factor ¸ğµç ±¸¹®¹®¹ı ¾Æ´Ô, ¿À·ù±¸¹® ¸¸µé¾î¾ßÇÔ" << endl;
+	//factor´Â ±æÀÌ°¡ 0ÀÌ°í, ¿À·ù´Â À§¿¡ ÀÖ´Â ÇÔ¼ö¿¡¼­ Ã³¸®ÇÒ °ÍÀÓ
+	return result;
 }
 int Const(const state* c, int* real_curr) {
-   //ë¬¸ìì—´ ìˆ«ì intë¡œ ë°”ê¿”ì„œ ë°˜í™˜
-   if (c[*real_curr].token_type == CONST)
-      return stoi(c[(*real_curr)++].lexeme);
-   return UNKNOWN;//unknownê°’(99)ë“¤ì–´ê°€ë²„ë¦¼,ì°¨í”¼ ì‚¬ìš© ì•ˆí• ê±°ë¼ ìƒê´€ ì—†ìŒ
+	//¹®ÀÚ¿­ ¼ıÀÚ int·Î ¹Ù²ã¼­ ¹İÈ¯
+	if (c[*real_curr].token_type == CONST)
+		return stoi(c[(*real_curr)++].lexeme);
+	return UNKNOWN;//unknown°ª(99)µé¾î°¡¹ö¸²,Â÷ÇÇ »ç¿ë ¾ÈÇÒ°Å¶ó »ó°ü ¾øÀ½
 }
-int* Ident(const state* c, int* real_curr, id* ident) {
-   //ê°’ì„ ë°›ì„ ìˆ˜ë„ ìˆì–´ì„œ ì£¼ì†Œê°’ ë°˜í™˜
-   //í˜¸ì¶œ ë˜ëŠ” ê³³: Statement, Factor
-   //Statementì—ì„œ ì£¼ì†Œê°’ì— ê°’ ë„£ê¸°
-   //Factorì—ì„œ ì£¼ì†Œê°’ì°¸ì¡°ë¡œ ê°’ ì°¾ê¸°
-   if (c[*real_curr].token_type == IDENT) {
-      for (int i = 0; i < id_counter; i++) {
-         if (c[*real_curr].lexeme == ident[i].lexeme) {
-            (*real_curr)++;
-            return &(ident[i].value);
-         }
-      }
-      //ì •ì˜ë˜ì§€ ì•Šì€ IDê°’, í”„ë¡œê·¸ë¨ ì˜¤ë¥˜ ì•„ë‹ˆë©´ ì‹¤í–‰X
-      cout << "IDì¸ë° ì •ì˜ë˜ì§€ ì•Šì€ ë³€ìˆ˜ëª…ì„" << endl;
-      return NULL;
-   }
-   return NULL;//ì°¨í”¼ ë°˜í™˜ê°’ ì‚¬ìš© ì•ˆí• ê±°ë¼ ìƒê´€ ì—†ìŒ
+int Ident(const state* c, int* real_curr, id* ident) {
+	//°ªÀ» ¹ŞÀ» ¼öµµ ÀÖ¾î¼­ identÀÇ À§Ä¡ ¼ıÀÚ ¹İÈ¯
+	//È£Ãâ µÇ´Â °÷: Statement, Factor
+	if (c[*real_curr].token_type == IDENT) {
+		for (int i = 0; i < id_counter; i++) {
+			if (c[*real_curr].lexeme == ident[i].lexeme) {
+				(*real_curr)++;
+				return i;
+			}
+		}
+		//Á¤ÀÇµÇÁö ¾ÊÀº ID°ª, ÇÁ·Î±×·¥ ¿À·ù ¾Æ´Ï¸é ½ÇÇàX
+		cout << "IDÀÎµ¥ Á¤ÀÇµÇÁö ¾ÊÀº º¯¼ö¸íÀÓ" << endl;
+		return -1;
+	}
+	return -1;//Â÷ÇÇ ¹İÈ¯°ª »ç¿ë ¾ÈÇÒ°Å¶ó »ó°ü ¾øÀ½
 }
 void Assignment_op(const state* c, int* real_curr) {
-   if (c[*real_curr].token_type == ASSIGN_OP)
-      (*real_curr)++;
-   return;
+	if (c[*real_curr].token_type == ASSIGN_OP)
+		(*real_curr)++;
+	return;
 }
 void Semi_colon(const state* c, int* real_curr) {
-   if (c[*real_curr].token_type == SEMI_COLON)
-      (*real_curr)++;
-   return;
+	if (c[*real_curr].token_type == SEMI_COLON)
+		(*real_curr)++;
+	return;
 }
 int Add_operator(const state* c, int* real_curr) {
-   if (c[*real_curr].token_type == ADD_OP) {
-      (*real_curr)++;
-      return ADD_OP;
-   }
-   else if (c[*real_curr].token_type == SUB_OP) {
-      (*real_curr)++;
-      return SUB_OP;
-   }
-   else return UNKNOWN;
+	if (c[*real_curr].token_type == ADD_OP) {
+		(*real_curr)++;
+		return ADD_OP;
+	}
+	else if (c[*real_curr].token_type == SUB_OP) {
+		(*real_curr)++;
+		return SUB_OP;
+	}
+	else return UNKNOWN;
 }
 int Mult_operator(const state* c, int* real_curr) {
-   if (c[*real_curr].token_type == MULT_OP) {
-      (*real_curr)++;
-      return MULT_OP;
-   }
-   else if (c[*real_curr].token_type == DIV_OP) {
-      (*real_curr)++;
-      return DIV_OP;
-   }
-   return UNKNOWN;
+	if (c[*real_curr].token_type == MULT_OP) {
+		(*real_curr)++;
+		return MULT_OP;
+	}
+	else if (c[*real_curr].token_type == DIV_OP) {
+		(*real_curr)++;
+		return DIV_OP;
+	}
+	return UNKNOWN;
 }
 void Left_paren(const state* c, int* real_curr) {
-   if (c[*real_curr].token_type == LEFT_PAREN)
-      (*real_curr)++;
-   return;
+	if (c[*real_curr].token_type == LEFT_PAREN)
+		(*real_curr)++;
+	return;
 }
 void Right_paren(const state* c, int* real_curr) {
-   if (c[*real_curr].token_type == RIGHT_PAREN)
-      (*real_curr)++;
-   return;
+	if (c[*real_curr].token_type == RIGHT_PAREN)
+		(*real_curr)++;
+	return;
 }

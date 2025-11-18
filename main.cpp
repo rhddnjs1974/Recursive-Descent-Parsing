@@ -10,42 +10,42 @@
 
 extern int id_counter;
 
-extern int* isunknown;
-extern int  isunknown_n;
+//extern int* isunknown;
+//extern int  isunknown_n;
 
-// ê° êµ¬ê°„ ID/CONST/OP ê°œìˆ˜
+// °¢ ±¸°£ ID/CONST/OP °³¼ö
 static void dump_counts(const std::vector<state>& toks, std::size_t L, std::size_t R) {
     int idc = 0, cnst = 0, op = 0;
     for (std::size_t i = L; i < R; ++i) {
         switch (toks[i].token_type) {
-            case IDENT: ++idc; break;
-            case CONST: ++cnst; break;
+        case IDENT: ++idc; break;
+        case CONST: ++cnst; break;
             //case ASSIGN_OP:
-            case ADD_OP:
-            case SUB_OP:
-            case MULT_OP:
-            case DIV_OP: ++op; break;
-            default: break;
+        case ADD_OP:
+        case SUB_OP:
+        case MULT_OP:
+        case DIV_OP: ++op; break;
+        default: break;
         }
     }
     std::cout << "ID: " << idc << "; CONST: " << cnst << "; OP: " << op << ";\n";
 }
 
-// í† í°ë“¤ì„ ê·¸ëŒ€ë¡œ ì´ì–´ë¶™ì´ê³  ; ë¶™ì´ê¸°
+// ÅäÅ«µéÀ» ±×´ë·Î ÀÌ¾îºÙÀÌ°í ; ºÙÀÌ±â
 static void echo_stmt(const std::vector<state>& toks, std::size_t L, std::size_t R) {
     for (std::size_t i = L; i < R; ++i) std::cout << toks[i].lexeme;
     std::cout << ";\n";
 }
 
-// ì¤‘ë³µ ì²´í¬
+// Áßº¹ Ã¼Å©
 static bool seen_name(const std::vector<id>& table, const std::string& name) {
     for (const auto& row : table) if (row.lexeme == name) return true;
     return false;
 }
 
-// id í…Œì´ë¸” êµ¬ì„±
+// id Å×ÀÌºí ±¸¼º
 static std::vector<id> build_id_table(const std::vector<state>& toks,
-                                      const std::vector<std::pair<std::size_t,std::size_t>>& stmts) {
+    const std::vector<std::pair<std::size_t, std::size_t>>& stmts) {
     std::vector<id> tbl;
     for (const auto& seg : stmts) {
         const std::size_t L = seg.first, R = seg.second;
@@ -59,19 +59,25 @@ static std::vector<id> build_id_table(const std::vector<state>& toks,
             }
         }
     }
-    if (tbl.empty()) { id d; d.lexeme = "_"; d.value = UNKNOWN; tbl.push_back(d); } // ì´ˆê¸°ê°’ unknown
+    if (tbl.empty()) { id d; d.lexeme = "_"; d.value = UNKNOWN; tbl.push_back(d); } // ÃÊ±â°ª unknown
     return tbl;
 }
 
-// ìµœì¢… ê²°ê³¼ ì¶œë ¥
+// ÃÖÁ¾ °á°ú Ãâ·Â
 static void render_result(const std::vector<id>& tbl) {
     std::cout << "Result ==> ";
     for (std::size_t i = 0; i < tbl.size(); ++i) {
         if (i) std::cout << ' ';
         std::cout << tbl[i].lexeme << ": "
-                  << (tbl[i].value == UNKNOWN ? std::string("Unknown")
-                                              : std::to_string(tbl[i].value))
-                  << ';';
+            << (tbl[i].is_unknown == 0 ? std::string("Unknown")
+                : std::to_string(tbl[i].value))
+            << ';';
+
+        //if (i) std::cout << ' ';
+        //std::cout << tbl[i].lexeme << ": "
+        //    << (tbl[i].value == UNKNOWN ? std::string("Unknown")
+        //        : std::to_string(tbl[i].value))
+        //    << ';';
     }
     std::cout << '\n';
 }
@@ -79,7 +85,7 @@ static void render_result(const std::vector<id>& tbl) {
 int main(int argc, char** argv) {
     std::ios::sync_with_stdio(false);
 
-    // ì…ë ¥ íŒŒì¼ ì—´ê¸°
+    // ÀÔ·Â ÆÄÀÏ ¿­±â
     if (argc < 2) {
         std::cerr << "Usage: " << (argc ? argv[0] : "prog") << " <inputfile>\n";
         return 1;
@@ -90,31 +96,33 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // ë ‰ì‹±
+    // ·º½Ì
     const std::string src((std::istreambuf_iterator<char>(fin)), std::istreambuf_iterator<char>());
     const std::vector<state> toks = lex_all(src);
     const auto stmts = split_statements(toks);
 
-    // id í…Œì´ë¸” êµ¬ì„±
+    // id Å×ÀÌºí ±¸¼º
     std::vector<id> sym = build_id_table(toks, stmts);
     if (id_counter < static_cast<int>(sym.size())) id_counter = static_cast<int>(sym.size());
 
     // isunknown
-    isunknown_n = id_counter;
-    isunknown   = new int[isunknown_n];
-    for (int i = 0; i < isunknown_n; ++i) isunknown[i] = 0;   // ì²˜ìŒì—” ëª¨ë‘ Unknown
+    //isunknown_n = id_counter;
+    //isunknown = new int[isunknown_n];
+    //for (int i = 0; i < isunknown_n; ++i) isunknown[i] = 0;   // Ã³À½¿£ ¸ğµÎ Unknown
 
-    // ë¬¸ì¥ë³„ íŒŒì‹± / ì¼ë‹¨ ok ì¶œë ¥
+    // ¹®Àåº° ÆÄ½Ì / ÀÏ´Ü ok Ãâ·Â / parser¿¡¼­ okÃâ·Â
     for (const auto& seg : stmts) {
         const std::size_t L = seg.first, R = seg.second;
         echo_stmt(toks, L, R);
         dump_counts(toks, L, R);
         int cur = static_cast<int>(L);
-        Statement(toks.data(), &cur, sym.data());
-        std::cout << "(OK)\n\n";
+        //Ãß°¡
+        int end = static_cast<int>(R);
+        Statement(toks.data(), &cur, &end, sym.data());
+        //std::cout << "(OK)\n\n";
     }
 
-    // ê²°ê³¼ ì¶œë ¥
+    // °á°ú Ãâ·Â
     render_result(sym);
     return 0;
 }
