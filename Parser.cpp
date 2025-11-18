@@ -42,12 +42,13 @@ void Statement(const state* c, int* real_curr, int* end_curr, id* ident) {
 					cout << "(OK)\n\n";
 					return;
 				}
-				//+,-,*,/,(,; 가능성 없음
-				//ID,CONST,),:=이면 오류
+				//+,-,*,/,; 가능성 없음
+				//ID,CONST,(,),:=이면 오류
 
 				switch (c[*real_curr].token_type) {
 				case IDENT:
 				case CONST:
+				case LEFT_PAREN:
 					cout << "(ERROR) 연산자(OP) 부족\n\n"; break;
 				case ASSIGN_OP:
 					cout << "(ERROR) 중복 \":=\" 발생\n\n"; break;

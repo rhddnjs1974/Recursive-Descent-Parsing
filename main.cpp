@@ -69,7 +69,7 @@ static void render_result(const std::vector<id>& tbl) {
     for (std::size_t i = 0; i < tbl.size(); ++i) {
         if (i) std::cout << ' ';
         std::cout << tbl[i].lexeme << ": "
-            << (tbl[i].is_unknown == 0 ? std::string("Unknown")
+            << (tbl[i].is_unknown == UNKNOWN ? std::string("Unknown")
                 : std::to_string(tbl[i].value))
             << ';';
 
