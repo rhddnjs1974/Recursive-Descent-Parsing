@@ -41,9 +41,11 @@ lexem에서 어휘분석되고 main에서 statement단위로 받아서 parsing�
 정의되지 않은 ID인지 구분한다.
 오류를 확정하는 함수는 다음과 같다.
 Statement: <ident><assignment_op><experssion>형태인지 확인하고, 문장이 끝났는지 확인한다.
-Expression: 길이가 0인 오류를 확인한다.
-Term_tail, Factor_tail: 연산자 뒤에 잘못된 값이 오는 오류를 확인한다.
-Factor: “)”부족 오류를 확인한다.
+Expression:<term><term_tail>형태인지 확인하고, 길이가 0인 오류를 확인한다.
+Term_tail, Factor_tail: <add_op><term><term_tail>|<>/<mult_op><factor><factor_tail>|<>형태인지 확인하고, 연산자 뒤에 잘못된 값이 오는 오류를 확인한다.
+Term: <factor><factor_tail>형태인지 확인한다.
+Factor: <left_paren><expression><right_paren>|<ident>|<const>형태인지 확인하고, “)”부족 오류를 확인한다. accept되지 않는 오류는 Expression,Term_tail, Factor_tail에서 확인한다.
+
  
 External Document:
 이미 형이 다 이상한 값 걸러줄거라 내가 쓸게 없다.
